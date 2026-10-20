@@ -1,0 +1,9 @@
+Readability counts.= 1
+
+Readability counts. = 2
+
+Readability counts. = 3
+
+pi means 3.14 and only this
+Readability counts. = 4
+Line < 10 ch

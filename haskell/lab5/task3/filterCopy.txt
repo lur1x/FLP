@@ -1,0 +1,7 @@
+python python python python
+1 + 1 + 1 + 1 + 1 + 1 = 7?
+this line has more characters than 15!!!
+this no
+This string containg Python and python and PYTHON
+python
+Тут русские буквы!
