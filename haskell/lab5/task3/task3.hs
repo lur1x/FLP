@@ -1,47 +1,64 @@
 import System.IO
 import System.Environment (getArgs)
-import System.Directory (renameFile)
+import System.Directory (doesFileExist, renameFile, removeFile)
 import Control.Monad (when, unless)
+import Control.Exception (try, IOException, bracketOnError)
 import Data.Char (isAsciiLower, isAsciiUpper, toLower)
+import Text.Read (readMaybe)
+
+writeViaTemp :: FilePath -> String -> IO ()
+writeViaTemp path newContent =
+    bracketOnError
+        (return (path ++ ".tmp"))
+        (\tmp -> try (removeFile tmp) :: IO (Either IOException ()))
+        (\tmp -> writeFile tmp newContent >> renameFile tmp path)
 
 viewFile :: FilePath -> IO ()
 viewFile path = do
-    contents <- readFile path
-    viewLines (lines contents) 0
-  where
-    viewLines :: [String] -> Int -> IO ()
-    viewLines [] _ = return ()
-    viewLines ls n = do
-        let (chunk, rest) = splitAt 20 ls
-        mapM_ putStrLn chunk
-        let shown     = n + length chunk
-            remaining = length rest
-        putStrLn $ "Показаны строки: " ++ show (n + 1) ++ "-" ++ show shown
-                ++ ", осталось строк: " ++ show remaining
-        when (not $ null rest) $ do
-            putStrLn "Нажмите Enter для продолжения или введите 'q' для выхода"
-            hFlush stdout
-            command <- getLine
-            unless (command == "q") $ viewLines rest shown
+    result <- try (readFile path) :: IO (Either IOException String)
+    case result of
+        Left e   -> putStrLn $ "Ошибка чтения файла: " ++ show e
+        Right cs -> viewLines (lines cs) 0
+    where
+        viewLines :: [String] -> Int -> IO ()
+        viewLines [] _ = return ()
+        viewLines ls n = do
+            let (chunk, rest) = splitAt 20 ls
+            mapM_ putStrLn chunk
+            let shown = n + length chunk
+            if null rest
+                then putStrLn $ "Показаны строки: " ++ show (n + 1) ++ "-" ++ show shown
+                else do
+                    putStrLn $ "Показаны строки: " ++ show (n + 1) ++ "-" ++ show shown
+                            ++ ", осталось строк: " ++ show (length rest)
+                    putStrLn "Нажмите Enter для продолжения или введите 'q' для выхода"
+                    hFlush stdout
+                    command <- getLine
+                    unless (command == "q") $ viewLines rest shown
 
 appendToFile :: FilePath -> String -> IO ()
 appendToFile path newContent = do
-    let tempPath = path ++ ".tmp"
-    contents <- readFile path
-    writeFile tempPath (contents ++ newContent ++ "\n")
-    renameFile tempPath path
+    result <- try (readFile path) :: IO (Either IOException String)
+    case result of
+        Left e -> putStrLn $ "Ошибка чтения файла: " ++ show e
+        Right contents -> do
+            let sep = if null contents || last contents == '\n' then "" else "\n"
+            writeViaTemp path (contents ++ sep ++ newContent ++ "\n")
 
 deleteLine :: FilePath -> Int -> IO ()
 deleteLine path lineNumber = do
-    contents <- readFile path
-    let ls = lines contents
-    if lineNumber < 1 || lineNumber > length ls
-        then putStrLn "Ошибка: неверный номер строки"
-        else do
-            let (before, rest) = splitAt (lineNumber - 1) ls
-                after          = drop 1 rest
-            writeFile path (unlines (before ++ after))
-            putStrLn $ "Строка " ++ show lineNumber ++ " удалена"
+    result <- try (readFile path) :: IO (Either IOException String)
+    case result of
+        Left e -> putStrLn $ "Ошибка чтения файла: " ++ show e
+        Right contents -> do
+            let ls = lines contents
+            if lineNumber < 1 || lineNumber > length ls
+                then putStrLn "Ошибка: неверный номер строки"
+                else do
+                    let (before, rest) = splitAt (lineNumber - 1) ls
+                        after          = drop 1 rest
+                    writeViaTemp path (unlines (before ++ after))
+                    putStrLn $ "Строка " ++ show lineNumber ++ " удалена"
 
 longLineFilter :: String -> Bool
 longLineFilter line = length line > 15
@@ -57,10 +74,13 @@ filterByName name = case map toLower name of
 
 copyWithFilters :: FilePath -> FilePath -> (String -> Bool) -> (String -> Bool) -> IO ()
 copyWithFilters sourcePath destPath filter1 filter2 = do
-    contents <- readFile sourcePath
-    let filteredContents = filter (\l -> filter1 l && filter2 l) (lines contents)
-    writeFile destPath (unlines filteredContents)
-    putStrLn $ "Скопировано в " ++ destPath
+    result <- try (readFile sourcePath) :: IO (Either IOException String)
+    case result of
+        Left e -> putStrLn $ "Ошибка чтения файла: " ++ show e
+        Right contents -> do
+            let filteredContents = filter (\l -> filter1 l && filter2 l) (lines contents)
+            writeViaTemp destPath (unlines filteredContents)
+            putStrLn $ "Скопировано в " ++ destPath
 
 menu :: FilePath -> IO ()
 menu path = do
@@ -89,9 +109,9 @@ menu path = do
             putStr "Номер строки (с 1): "
             hFlush stdout
             nStr <- getLine
-            case reads nStr :: [(Int, String)] of
-                [(k, "")] -> deleteLine path k >> menu path
-                _         -> putStrLn "Неверный номер" >> menu path
+            case readMaybe nStr :: Maybe Int of
+                Just k  -> deleteLine path k >> menu path
+                Nothing -> putStrLn "Неверный номер" >> menu path
 
         "4" -> do
             putStr "Целевой файл: "
@@ -114,5 +134,9 @@ main :: IO ()
 main = do
     args <- getArgs
     case args of
-        [filePath] -> menu filePath
-        _          -> putStrLn "Использование: <программа> <файл>"
+        [filePath] -> do
+            exists <- doesFileExist filePath
+            if exists
+                then menu filePath
+                else putStrLn $ "Ошибка: файл не найден: " ++ filePath
+        _ -> putStrLn "Использование: <программа> <файл>"
