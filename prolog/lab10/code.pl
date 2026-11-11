@@ -15,19 +15,26 @@ vertical(N) :- seg(N, point(X, _), point(X, _)).
 % Task 2
 cross(N, M, point(X, Y), NL, ML) :-
     (
-        % N - horizontal, M - vertical
+        % N — горизонтальный, M — вертикальный
         horiz(N), vertical(M),
         seg(N, point(X1, Y), point(X2, Y)),
         seg(M, point(X, Y1), point(X, Y2)),
-        X1 =< X, X =< X2, Y1 =< Y, Y =< Y2,
+
+        min(X1, X2) =< X, X =< max(X1, X2),
+        min(Y1, Y2) =< Y, Y =< max(Y1, Y2),
+
         NL is abs(X2 - X1),
         ML is abs(Y2 - Y1)
+
     ;
-        % M - horizontal, N - vertical
-        horiz(M), vertical(N), 
+        % M — горизонтальный, N — вертикальный
+        horiz(M), vertical(N),
         seg(N, point(X, Y1), point(X, Y2)),
         seg(M, point(X1, Y), point(X2, Y)),
-        X1 =< X, X =< X2, Y1 =< Y, Y =< Y2,
+
+        min(X1, X2) =< X, X =< max(X1, X2),
+        min(Y1, Y2) =< Y, Y =< max(Y1, Y2),
+
         NL is abs(Y2 - Y1),
         ML is abs(X2 - X1)
     ).
