@@ -14,7 +14,6 @@ vertical(N) :- seg(N, point(X, _), point(X, _)).
 
 % Task 2
 cross(N, M, point(X, Y), NL, ML) :-
-    % Я гений 
     (
         % N - horizontal, M - vertical
         horiz(N), vertical(M),
@@ -38,8 +37,13 @@ per_sq(A, B, C, D, P, S) :-
     cross(C, D, point(X2, Y2), _, _),
     cross(B, C, point(X2, Y1), _, _),
     cross(A, D, point(X1, Y2), _, _),
+
     A \= B, A \= C, A \= D,
     B \= C, B \= D,
     C \= D,
+
+    X1 =\= X2,
+    Y1 =\= Y2,
+
     P is 2 * (abs(X2 - X1) + abs(Y2 - Y1)),
     S is abs(X2 - X1) * abs(Y2 - Y1).
